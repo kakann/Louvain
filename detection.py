@@ -7,6 +7,8 @@ import csv
 from typing import List, Optional, Tuple, Union
 import time
 import matplotlib.pyplot as plt
+import numpy as np
+from itertools import count
 
 def open_csv(filename : str, header : List[str]):
     file = open(filename)
@@ -24,9 +26,9 @@ def open_csv_dic(filename : str, header : List[str]):
     i = 0
     for followedId, followedById, date in csvreader:
         rows[followedId].append(followedById)
-        #i = i + 1
-        #if i > 5000000:
-        #    break
+        i = i + 1
+        if i > 200:
+            break
     return (header, rows)
 
 def clean_data(dictionary,  threshold : int):
@@ -52,7 +54,7 @@ def main():
 
 
     start = time.perf_counter()
-    edge_list = clean_data(edge_dict, threshold=1000)
+    edge_list = clean_data(edge_dict, threshold=1)
     end = time.perf_counter()
     print(f"Lenght of edge list: {len(edge_list)}")
     print(f"Cleaning the data took: {end - start} seconds")
@@ -69,12 +71,53 @@ def main():
     start = time.perf_counter()
     communities = nx_comm.louvain_communities(G)
     end = time.perf_counter()
-    print(f"Lenght of edge list after graph is constructed: {len(edge_list)}")
+    #print(f"Lenght of edge list after graph is constructed: {len(edge_list)}")
     print(f"Louvain timer: {end - start} seconds")
     print(f"Ammount of communities: {len(communities)}")
 
+    #Transform data to be plottable
+    node_groups : dict(str) = {}
+    nodes_with_edge_data : list[Tuple[str, dict]] = []
+    i = 0
+    for community in communities:
+        node_groups[i] = community
+        i= i + 1
+
+    #print(f"Node groups {node_groups}")
+
+    for community in node_groups:
+        for node in node_groups[community]:
+            group : dict = {}
+            group['g'] = community
+            nodes_with_edge_data.append((node, group))
+    #print(f" Nodes with edge data: {nodes_with_edge_data}")
+
+    print(G.nodes())
+    node_colors = []
+
+    color_list = np.linspace(0, 1, len(edge_dict))
+
+    for node in nodes_with_edge_data:
+        node_colors.append(node[1]['g'])
+
+    
+
+    # drawing nodes and edges separately so we can capture collection for colobar
+    pos = nx.spring_layout(G)
+    ec = nx.draw_networkx_edges(G, pos, alpha=0.2)
+    nc = nx.draw_networkx_nodes(G, pos,  node_color=node_colors, 
+                            node_size=100, cmap=plt.cm.jet)
+    plt.colorbar(nc)
+    plt.axis('off')
+    plt.show()
+
+
+
+    #print (colors)
+    #colors : list = ["r", "b", "g"]
     #pos = nx.spring_layout(G, seed=225)
-    #nx.draw(G, pos)
+    #nx.draw(G, pos, node_color= range(203), cmap=plt.cm.jet)
+    #nx.draw_networkx_nodes();
     #plt.show()
     
 
