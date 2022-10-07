@@ -9,6 +9,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 from itertools import count
+import sys
 
 def open_csv(filename : str, header : List[str]):
     file = open(filename)
@@ -27,8 +28,6 @@ def open_csv_dic(filename : str, header : List[str]):
     for followedId, followedById, date in csvreader:
         rows[followedId].append(followedById)
         i = i + 1
-        if i > 200:
-            break
         
     return (header, rows)
 
@@ -43,6 +42,11 @@ def clean_data(dictionary,  threshold : int):
 
 def main():
 
+    if len(sys.argv) != 2:
+        print("detection.py Threshold")
+        quit()
+    threshold = int(sys.argv[1])
+
     print("Reading csv")
     edge_list = []
     edge_dict = {}
@@ -55,13 +59,10 @@ def main():
 
 
     start = time.perf_counter()
-    edge_list = clean_data(edge_dict, threshold=1)
+    edge_list = clean_data(edge_dict, threshold=threshold)
     end = time.perf_counter()
     print(f"Lenght of edge list: {len(edge_list)}")
     print(f"Cleaning the data took: {end - start} seconds")
-
-    
-    
 
     start = time.perf_counter()
     G = nx.Graph()
@@ -72,7 +73,6 @@ def main():
     start = time.perf_counter()
     communities = nx_comm.louvain_communities(G)
     end = time.perf_counter()
-    #print(f"Lenght of edge list after graph is constructed: {len(edge_list)}")
     print(f"Louvain timer: {end - start} seconds")
     print(f"Ammount of communities: {len(communities)}")
 
