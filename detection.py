@@ -29,6 +29,7 @@ def open_csv_dic(filename : str, header : List[str]):
         i = i + 1
         if i > 200:
             break
+        
     return (header, rows)
 
 def clean_data(dictionary,  threshold : int):
@@ -90,9 +91,7 @@ def main():
             group : dict = {}
             group['g'] = community
             nodes_with_edge_data.append((node, group))
-    #print(f" Nodes with edge data: {nodes_with_edge_data}")
 
-    print(G.nodes())
     node_colors = []
 
     color_list = np.linspace(0, 1, len(edge_dict))
@@ -102,14 +101,18 @@ def main():
 
     
 
+    start = time.perf_counter()
+    
     # drawing nodes and edges separately so we can capture collection for colobar
     pos = nx.spring_layout(G)
     ec = nx.draw_networkx_edges(G, pos, alpha=0.2)
-    nc = nx.draw_networkx_nodes(G, pos,  node_color=node_colors, 
-                            node_size=100, cmap=plt.cm.jet)
-    plt.colorbar(nc)
+    nc = nx.draw_networkx_nodes(G, pos, node_color=node_colors, 
+                            node_size=50, cmap=plt.cm.jet)
     plt.axis('off')
-    plt.show()
+    end = time.perf_counter()
+    print(f"Drawing the graph took: {end - start} seconds")
+    plt.savefig("communities.png")
+    #plt.show()
 
 
 
