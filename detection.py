@@ -76,28 +76,22 @@ def main():
     print(f"Louvain timer: {end - start} seconds")
     print(f"Ammount of communities: {len(communities)}")
 
-    #Transform data to be plottable
-    node_groups : dict(str) = {}
-    nodes_with_edge_data : list[Tuple[str, dict]] = []
-    i = 0
-    for community in communities:
-        node_groups[i] = community
-        i= i + 1
-
-    #print(f"Node groups {node_groups}")
-
-    for community in node_groups:
-        for node in node_groups[community]:
-            group : dict = {}
-            group['g'] = community
-            nodes_with_edge_data.append((node, group))
-
+    #Assign Colors
     node_colors = []
 
-    color_list = np.linspace(0, 1, len(edge_dict))
+    colored_nodes = []
 
-    for node in nodes_with_edge_data:
-        node_colors.append(node[1]['g'])
+    for edge in edge_list:
+        for node in edge:
+            if node not in colored_nodes:
+                colored_nodes.append(node)
+                i = 0
+                for community in communities:
+                    if node in community:
+                        node_colors.append(i)
+                        break
+                    else:
+                        i = i + 1
 
     
 
