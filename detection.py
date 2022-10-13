@@ -212,7 +212,7 @@ def main():
     #i=i+1
     N = len(R)
     M = N
-    K = 1
+    K = N
     P = np.random.rand(N, K)
     Q = np.random.rand(M, K)
     print("Starting factorization")
@@ -226,13 +226,13 @@ def main():
     for row in nR:
         user = list(communities[0])[i]
         i = i + 1
-        index_higest_prob = np.argsort(row)[-5:]
-        for index in index_higest_prob:
-            user_dict[list(communities[0])[index]].append(user)
+        for j in range(len(communities[0])):
+            if row[j] > 0.5:
+                user_dict[user].append(list(communities[0])[j])
     
-    print(user_dict)
-    #for user in user_dict:
-    #    print(f"{list(set(user_dict[user]) & set(edge_dict[user]))}")
+    for user in user_dict:
+        if edge_dict[user]:
+            print(f"{list(set(user_dict[user]) & set(edge_dict[user]))}")
 
 
 
@@ -281,6 +281,7 @@ def main():
     #nx.draw_networkx_nodes();
     #plt.show()
     '''
+    
 
 if __name__ == "__main__":
     main()
