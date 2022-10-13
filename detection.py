@@ -11,7 +11,7 @@ import numpy as np
 from itertools import count
 import sys
 import random
-
+import networkx.algorithms.community as nx_comm
 
 
 def open_csv(filename : str, header : List[str]):
@@ -31,9 +31,8 @@ def open_csv_dic(filename : str, header : List[str]):
     for followedId, followedById, date in csvreader:
         rows[followedId].append(followedById)
         i = i + 1
-        if i> 200:
+        if i > 200000: 
             break
-        
     return (header, rows)
 
 def clean_data(dictionary,  threshold : int):
@@ -44,7 +43,7 @@ def clean_data(dictionary,  threshold : int):
                 edge_list.append((key, follower))
     return edge_list
 
-def matrix_factorization(R, P, Q, K, steps=5000, alpha=0.0002, beta=0.02):
+def matrix_factorization(R, P, Q, K, steps=5, alpha=0.0002, beta=0.02):
     '''
     R: rating matrix
     P: |U| * K (User features matrix)
@@ -54,8 +53,9 @@ def matrix_factorization(R, P, Q, K, steps=5000, alpha=0.0002, beta=0.02):
     alpha: learning rate
     beta: regularization parameter
     '''
+    print("Starting transpose")
     Q = Q.T
-
+    print(f"error handling starting")
     for step in range(steps):
         for i in range(len(R)):
             for j in range(len(R[i])):
@@ -72,7 +72,6 @@ def matrix_factorization(R, P, Q, K, steps=5000, alpha=0.0002, beta=0.02):
         eR = np.dot(P,Q)
 
         e = 0
-
         for i in range(len(R)):
 
             for j in range(len(R[i])):
@@ -93,46 +92,59 @@ def matrix_factorization(R, P, Q, K, steps=5000, alpha=0.0002, beta=0.02):
 
 
         
-def extract_test_followes(edge_dict, test_traning_ratio : float):
+def extract_test_followes(edge_dict, test_training_ratio : float):
     #Transform dict with key=follwe, value=list(followers) to key= follower value=list(followes)
     follower_dict : dict(str, list) = defaultdict(list)
+    print(len(edge_dict))
     for followe in edge_dict:
         for follower in edge_dict[followe]:
             follower_dict[follower].append(followe)
-    print(follower_dict)
     
     #Get test and training data
-    training_edge_dict : dict(str, list) = defaultdict(list)
-    test_edge_dict : dict(str, list) = defaultdict(list)
-    tmp_traning_data= {}
+    training_edge= []
+    test_edge = []
     for follower in follower_dict:
         length = len(follower_dict[follower])
-        no_elems_to_keep = int(length * test_traning_ratio)
-        training_data = set(random.sample(follower_dict[follower], no_elems_to_keep))
+        random.shuffle(follower_dict[follower])
+        elements_to_remove = int(length * test_training_ratio)
+        if elements_to_remove < 2:
+            for followe in follower_dict[follower]:
+                training_edge.append(tuple((followe, follower)))
+        else:
+
+            for followe in follower_dict[follower][0:elements_to_remove]:
+                training_edge.append(tuple((followe, follower)))
+            for followe in follower_dict[follower][elements_to_remove:length]:
+                test_edge.append(tuple((followe, follower)))
+            
+
         
-        test_edge_dict[follower] =  training_data.difference(follower_dict[follower])
-        training_edge_dict[follower] = training_data
+
+        
+
+    print(f"LEN TRAINING EDGE DICT {len(training_edge)}")
+    print(f"LEN TEST EDGE DICT {len(test_edge)}")
     #print(training_edge_dict)
-    
+
     #Transform back to original format
     result_training_dict : dict(str, list) = defaultdict(list)
     result_test_dict : dict(str, list) = defaultdict(list)
-    for test_follower in test_edge_dict:
-        for test_followe in test_edge_dict[test_follower]:
-            result_test_dict[test_followe].append(test_follower)
+    for followe, follower in training_edge:
+        result_training_dict[followe].append(follower)
+    for followe, follower in test_edge:
+        result_test_dict[followe].append(follower)
 
-    for training_follower in training_edge_dict:
-        for training_followe in test_edge_dict[training_follower]:
-            result_test_dict[training_followe].append(training_follower)
+
 
     return result_training_dict, result_test_dict 
 
 def main():
 
-    if len(sys.argv) != 2:
+    if len(sys.argv) != 3:
         print("detection.py Threshold")
         quit()
     threshold = int(sys.argv[1])
+    test_training_split = float(sys.argv[2])
 
     print("Reading csv")
     edge_list = []
@@ -147,21 +159,17 @@ def main():
 
     training_edge_dict = {}
     test_edge_dict = {}
-    training_edge_dict, test_edge_dict = extract_test_followes(edge_dict, 0.9)
+    training_edge_dict, test_edge_dict = extract_test_followes(edge_dict, test_training_split)
 
-    print(len(training_edge_dict))
-    print(test_edge_dict)
+    print(f"Training data len{len(list(training_edge_dict.values()))}")
+    print(f"Test data len {len(list(test_edge_dict.values()))}")
 
 
     start = time.perf_counter()
-    edge_list = clean_data(edge_dict, threshold=threshold)
+    edge_list = clean_data(training_edge_dict, threshold=threshold)
     end = time.perf_counter()
     print(f"Lenght of edge list: {len(edge_list)}")
     print(f"Cleaning the data took: {end - start} seconds")
-
-
-
-
 
     start = time.perf_counter()
     G = nx.Graph()
@@ -170,61 +178,68 @@ def main():
     print(f"Construcing the graph took: {end - start} seconds")
 
     start = time.perf_counter()
-    communities = nx_comm.louvain_communities(G)
+    communities = nx_comm.louvain_communities(G, resolution= 5)
     end = time.perf_counter()
     print(f"Louvain timer: {end - start} seconds")
     print(f"Ammount of communities: {len(communities)}")
+    print(f"Modularity of the graph: {nx_comm.modularity(G, communities)}")
 
 
     #print(communities[0])
     #print(edge_dict)
+    
     Mc : list() = []
-    i = 0
+    x = 0
     for community in communities:
-        print(f"Creating R for community {i}")
-        i=i+1
+        print(f"Creating R for community {x} of SIze {len(community)}")
+        x=x+1
         dim = len(community)
         M = [[0 for x in range(dim)] for y in range(dim)] 
         for i in range(len(community)):
             for j in range(len(community)):
-                if list(community)[j] in edge_dict[list(community)[i]]:
+                if list(community)[j] in training_edge_dict[list(community)[i]]:
+                    M[i][j] = 1
+                elif i == j:
                     M[i][j] = 1
                 else:
                     M[i][j] = 0
         Mc.append(M)
+        break
+
     i = 0
-    for R in Mc:
-        print(f"Matrix factorization for community: {i}")
-        i=i+1
-        N = len(R)
-        M = N
-        K = 1
-        P = np.random.rand(N, K)
-        Q = np.random.rand(M, K)
+    R = Mc[0]
+    print(f"Matrix factorization for community: {i}")
+    #i=i+1
+    N = len(R)
+    M = N
+    K = 1
+    P = np.random.rand(N, K)
+    Q = np.random.rand(M, K)
+    print("Starting factorization")
+    nP, nQ = matrix_factorization(R, P, Q, K)
 
-        nP, nQ = matrix_factorization(R, P, Q, K)
+    nR = np.dot(nP, nQ.T)
+    print(f"Community Size: {N}")
+    print(nR)
+    i = 0
+    user_dict : dict(str, list) = defaultdict(list)
+    for row in nR:
+        user = list(communities[0])[i]
+        i = i + 1
+        index_higest_prob = np.argsort(row)[-5:]
+        for index in index_higest_prob:
+            user_dict[list(communities[0])[index]].append(user)
+    
+    print(user_dict)
+    #for user in user_dict:
+    #    print(f"{list(set(user_dict[user]) & set(edge_dict[user]))}")
 
-        nR = np.dot(nP, nQ.T)
-        print(f"Community Size: {N}")
-        print(nR)
 
+
+
+        
     print("done")
-    
-
-
-    
-
-    
-
-
-
-
-
-
-
-
-
-    
+    '''
     #Assign Colors
     node_colors = []
     colored_nodes = []
@@ -265,7 +280,7 @@ def main():
     #nx.draw(G, pos, node_color= range(203), cmap=plt.cm.jet)
     #nx.draw_networkx_nodes();
     #plt.show()
-    
+    '''
 
 if __name__ == "__main__":
     main()
