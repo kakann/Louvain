@@ -58,9 +58,7 @@ def matrix_factorization(R, P, Q, K, steps=5, alpha=0.0002, beta=0.02):
     alpha: learning rate
     beta: regularization parameter
     '''
-    print("Starting transpose")
-    Q = Q.T
-    print(f"error handling starting")
+    Q = Q.T   
     for step in range(steps):
         for i in range(len(R)):
             for j in range(len(R[i])):
@@ -200,7 +198,6 @@ def verify_test_data(communities, communities_nR, edge_dict):
         j = 0
         user_dict : dict(str, list) = defaultdict(list)
         for row in nR:
-            #print(f"ROWlen: {len(row)} N: {N} J itterator {j}")
             assert len(row) == N
             user = list(community)[j]
             j = j + 1
