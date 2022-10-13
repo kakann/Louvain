@@ -176,19 +176,17 @@ def matrix_factorizer(Mc, K, communities):
     communities_nR = []
     for R in Mc:
         assert len(R) == len(communities[i])
-        #print(f"nR for community {i}")
         i=i+1
-        #print(f"Matrix factorization for community: {i}")
-        #i=i+1
         N = len(R)
         M = N
         K = 1
+
         P = np.random.rand(N, K)
         Q = np.random.rand(M, K)
-        #print("Starting factorization")
-        nP, nQ = matrix_factorization(R, P, Q, K)
 
+        nP, nQ = matrix_factorization(R, P, Q, K)
         nR = np.dot(nP, nQ.T)
+
         communities_nR.append(nR)
     return communities_nR
 
@@ -214,7 +212,7 @@ def verify_test_data(communities, communities_nR, edge_dict):
                 if len(list(set(user_dict[user]) & set(edge_dict[user]))) > 0:
                     score=score+1
         print(f"Community {i} has a probability of: {score / N} SCORE: {score} ------- len {N}")
-        #assert (score / N) > 1
+        assert (score / N) < 1
         prob= prob + (score/ N)
         i = i + 1
     return prob/len(communities)
