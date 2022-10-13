@@ -1,6 +1,8 @@
 from collections import defaultdict
 from email.policy import default
 from fileinput import filename
+from os import SCHED_OTHER
+from re import L
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 import csv
@@ -118,15 +120,15 @@ def extract_test_followes(edge_dict, test_training_ratio : float):
         length = len(follower_dict1[follower])
         random.shuffle(follower_dict1[follower])
         elements_to_remove = int(length * test_training_ratio)
-        if elements_to_remove < 2:
-            for followe in follower_dict1[follower]:
-                training_edge.append(tuple((followe, follower)))
-        else:
+        #if elements_to_remove < 2:
+        #    for followe in follower_dict1[follower]:
+        #        training_edge.append(tuple((followe, follower)))
+        #else:
 
-            for followe in follower_dict1[follower][0:elements_to_remove]:
-                training_edge.append(tuple((followe, follower)))
-            for followe in follower_dict1[follower][elements_to_remove:length]:
-                test_edge.append(tuple((followe, follower)))
+        for followe in follower_dict1[follower][0:elements_to_remove]:
+            training_edge.append(tuple((followe, follower)))
+        for followe in follower_dict1[follower][elements_to_remove:length]:
+            test_edge.append(tuple((followe, follower)))
             
 
         
@@ -148,6 +150,74 @@ def extract_test_followes(edge_dict, test_training_ratio : float):
 
 
     return result_training_dict, result_test_dict 
+
+def R(communities, training_edge_dict):
+    Mc : list() = []
+    x = 0
+    for community in communities:
+        #print(f"Creating R for community {x} of SIze {len(community)}")
+        x=x+1
+        dim = len(community)
+        M = [[0 for x in range(dim)] for y in range(dim)] 
+        for i in range(dim):
+            for j in range(dim):
+                if list(community)[j] in training_edge_dict[list(community)[i]]:
+                    M[i][j] = 1
+                elif i == j:
+                    M[i][j] = 1
+                else:
+                    M[i][j] = 0
+        assert len(M) == len(community)
+        Mc.append(M)
+    return Mc
+
+def matrix_factorizer(Mc, K, communities):
+    i = 0
+    communities_nR = []
+    for R in Mc:
+        assert len(R) == len(communities[i])
+        #print(f"nR for community {i}")
+        i=i+1
+        #print(f"Matrix factorization for community: {i}")
+        #i=i+1
+        N = len(R)
+        M = N
+        K = 1
+        P = np.random.rand(N, K)
+        Q = np.random.rand(M, K)
+        #print("Starting factorization")
+        nP, nQ = matrix_factorization(R, P, Q, K)
+
+        nR = np.dot(nP, nQ.T)
+        communities_nR.append(nR)
+    return communities_nR
+
+def verify_test_data(communities, communities_nR, edge_dict):
+    i = 0
+    prob = 0
+    for community in communities:
+        print(f"Verifying data for community {i}")
+        nR = communities_nR[i]
+        N = len(community)
+        j = 0
+        user_dict : dict(str, list) = defaultdict(list)
+        for row in nR:
+            #print(f"ROWlen: {len(row)} N: {N} J itterator {j}")
+            assert len(row) == N
+            user = list(community)[j]
+            j = j + 1
+            indexes = np.argsort(row)[-5:]
+            for index in indexes:
+                user_dict[user].append(list(community)[index])
+        score = 0
+        for user in user_dict:
+                if len(list(set(user_dict[user]) & set(edge_dict[user]))) > 0:
+                    score=score+1
+        print(f"Community {i} has a probability of: {score / N} SCORE: {score} ------- len {N}")
+        #assert (score / N) > 1
+        prob= prob + (score/ N)
+        i = i + 1
+    return prob/len(communities)
 
 def main():
 
@@ -199,52 +269,12 @@ def main():
     #print(communities[0])
     #print(edge_dict)
     
-    Mc : list() = []
-    x = 0
-    for community in communities:
-        print(f"Creating R for community {x} of SIze {len(community)}")
-        x=x+1
-        dim = len(community)
-        M = [[0 for x in range(dim)] for y in range(dim)] 
-        for i in range(len(community)):
-            for j in range(len(community)):
-                if list(community)[j] in training_edge_dict[list(community)[i]]:
-                    M[i][j] = 1
-                elif i == j:
-                    M[i][j] = 1
-                else:
-                    M[i][j] = 0
-        Mc.append(M)
-        break
-    for R in Mc:
-        i = 0
-        R = Mc[0]
-        print(f"Matrix factorization for community: {i}")
-        #i=i+1
-        N = len(R)
-        M = N
-        K = 1
-        P = np.random.rand(N, K)
-        Q = np.random.rand(M, K)
-        print("Starting factorization")
-        nP, nQ = matrix_factorization(R, P, Q, K)
-
-        nR = np.dot(nP, nQ.T)
-    print(f"Community Size: {N}")
-    i = 0
-    user_dict : dict(str, list) = defaultdict(list)
-    for row in nR:
-        user = list(communities[0])[i]
-        i = i + 1
-        indexes = np.argsort(row)[-5:]
-        for index in indexes:
-            user_dict[user].append(list(communities[0])[index])
-    i = 0
-    for user in user_dict:
-            if len(list(set(user_dict[user]) & set(edge_dict[user]))) > 0:
-                i=i+1
-    print(i / N)
+    Mc = R(communities, training_edge_dict)
+    communities_nR =matrix_factorizer(Mc, K=1, communities=communities)
     
+    a = verify_test_data(communities, communities_nR, edge_dict)
+
+    print(f"Final score: {a}")
     
 
 
