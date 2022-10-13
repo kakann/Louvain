@@ -12,6 +12,7 @@ from itertools import count
 import sys
 import random
 import networkx.algorithms.community as nx_comm
+import pyfof
 
 
 def open_csv(filename : str, header : List[str]):
@@ -21,24 +22,26 @@ def open_csv(filename : str, header : List[str]):
     i = 0
     for row in csvreader:
         rows.append(row[:2])
+    print(f"len of original edgelist {len(csvreader)}")
     return (header, rows)
 
 def open_csv_dic(filename : str, header : List[str]):
     file = open(filename)
     csvreader = csv.reader(file, delimiter='\t')
+    
     rows : dict(str, list) = defaultdict(list)
     i = 0
     for followedId, followedById, date in csvreader:
         rows[followedId].append(followedById)
         i = i + 1
         if i > 200000: 
-            break
+           break
+    print(f"len of original edgelist {i}")
     return (header, rows)
 
-def clean_data(dictionary,  threshold : int):
+def convert_dict_to_edgelist(dictionary,  threshold : int):
     edge_list : list[Tuple[str, str]] = []
     for key in dictionary:
-        if (len(dictionary[key]) > threshold):
             for follower in dictionary[key]:
                 edge_list.append((key, follower))
     return edge_list
@@ -95,26 +98,34 @@ def matrix_factorization(R, P, Q, K, steps=5, alpha=0.0002, beta=0.02):
 def extract_test_followes(edge_dict, test_training_ratio : float):
     #Transform dict with key=follwe, value=list(followers) to key= follower value=list(followes)
     follower_dict : dict(str, list) = defaultdict(list)
-    print(len(edge_dict))
+    print(f"Lenght before cleaning {len(edge_dict)}")
     for followe in edge_dict:
-        for follower in edge_dict[followe]:
-            follower_dict[follower].append(followe)
+        if len(edge_dict[followe]) >= 10:
+            for follower in edge_dict[followe]:
+                follower_dict[follower].append(followe)
+    print(f"Lenght after cleaning {len(edge_dict)}")
+    follower_dict1 : dict(str, list) = defaultdict(list)
+    for follower in follower_dict:
+        if len(follower_dict[follower]) > 10:
+            for followe in follower_dict[follower]:
+                follower_dict1[follower].append(followe)
+    print(f"Lenght after cleaning follower dict cleaning {len(follower_dict1)}")
     
     #Get test and training data
     training_edge= []
     test_edge = []
     for follower in follower_dict:
-        length = len(follower_dict[follower])
-        random.shuffle(follower_dict[follower])
+        length = len(follower_dict1[follower])
+        random.shuffle(follower_dict1[follower])
         elements_to_remove = int(length * test_training_ratio)
         if elements_to_remove < 2:
-            for followe in follower_dict[follower]:
+            for followe in follower_dict1[follower]:
                 training_edge.append(tuple((followe, follower)))
         else:
 
-            for followe in follower_dict[follower][0:elements_to_remove]:
+            for followe in follower_dict1[follower][0:elements_to_remove]:
                 training_edge.append(tuple((followe, follower)))
-            for followe in follower_dict[follower][elements_to_remove:length]:
+            for followe in follower_dict1[follower][elements_to_remove:length]:
                 test_edge.append(tuple((followe, follower)))
             
 
@@ -166,10 +177,10 @@ def main():
 
 
     start = time.perf_counter()
-    edge_list = clean_data(training_edge_dict, threshold=threshold)
+    edge_list = convert_dict_to_edgelist(training_edge_dict, threshold=threshold)
     end = time.perf_counter()
-    print(f"Lenght of edge list: {len(edge_list)}")
-    print(f"Cleaning the data took: {end - start} seconds")
+    print(f"Lenght of NEW edge list: {len(edge_list)}")
+    print(f"Converting to edge_list took {end - start} seconds")
 
     start = time.perf_counter()
     G = nx.Graph()
@@ -205,34 +216,37 @@ def main():
                     M[i][j] = 0
         Mc.append(M)
         break
+    for R in Mc:
+        i = 0
+        R = Mc[0]
+        print(f"Matrix factorization for community: {i}")
+        #i=i+1
+        N = len(R)
+        M = N
+        K = 1
+        P = np.random.rand(N, K)
+        Q = np.random.rand(M, K)
+        print("Starting factorization")
+        nP, nQ = matrix_factorization(R, P, Q, K)
 
-    i = 0
-    R = Mc[0]
-    print(f"Matrix factorization for community: {i}")
-    #i=i+1
-    N = len(R)
-    M = N
-    K = N
-    P = np.random.rand(N, K)
-    Q = np.random.rand(M, K)
-    print("Starting factorization")
-    nP, nQ = matrix_factorization(R, P, Q, K)
-
-    nR = np.dot(nP, nQ.T)
+        nR = np.dot(nP, nQ.T)
     print(f"Community Size: {N}")
-    print(nR)
     i = 0
     user_dict : dict(str, list) = defaultdict(list)
     for row in nR:
         user = list(communities[0])[i]
         i = i + 1
-        for j in range(len(communities[0])):
-            if row[j] > 0.5:
-                user_dict[user].append(list(communities[0])[j])
-    
+        indexes = np.argsort(row)[-5:]
+        for index in indexes:
+            user_dict[user].append(list(communities[0])[index])
+    i = 0
     for user in user_dict:
-        if edge_dict[user]:
-            print(f"{list(set(user_dict[user]) & set(edge_dict[user]))}")
+            if len(list(set(user_dict[user]) & set(edge_dict[user]))) > 0:
+                i=i+1
+    print(i / N)
+    
+    
+
 
 
 
