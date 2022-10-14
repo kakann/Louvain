@@ -3,6 +3,7 @@ from email.policy import default
 from fileinput import filename
 from os import SCHED_OTHER
 from re import L
+from jinja2 import Undefined
 import networkx as nx
 import networkx.algorithms.community as nx_comm
 import csv
@@ -188,31 +189,58 @@ def matrix_factorizer(Mc, K, communities):
         communities_nR.append(nR)
     return communities_nR
 
+def top_k_followes(row, user_dict, user, community, k):
+    indexes = np.argsort(row)[-k:]
+    for index in indexes:
+        user_dict[user].append(list(community)[index])
+
+def L_intersect_L_p(L, L_p):
+    return len(list(L & L_p))
+def c_conversion_rate(L, L_p):
+    return 1 if  L_intersect_L_p(L, L_p) > 0 else 0
+def c_recall(L, L_p):
+    return 0 if  len(L_p) == 0 else L_intersect_L_p(L, L_p)/len(L_p)
+def c_precision(L, L_p):
+    return 0 if len(L) == 0 else L_intersect_L_p(L, L_p)/len(L)
+
 def verify_test_data(communities, communities_nR, edge_dict):
     i = 0
-    prob = 0
-    for community in communities:
+    recall_avg = 0
+    precision_avg = 0
+    conversion_rate_avg = 0
+    for (community, nR) in zip(communities, communities_nR):
         print(f"Verifying data for community {i}")
-        nR = communities_nR[i]
-        N = len(community)
-        j = 0
+        community_size = len(community)
+
         user_dict : dict(str, list) = defaultdict(list)
-        for row in nR:
-            assert len(row) == N
-            user = list(community)[j]
-            j = j + 1
-            indexes = np.argsort(row)[-5:]
-            for index in indexes:
-                user_dict[user].append(list(community)[index])
-        score = 0
+        user_dict_list : list(dict(str, list)) = []
+        iK = 0
+        for (row, user) in zip(nR, community):
+            assert len(row) == community_size
+            
+            
+            top_k_followes(row, user_dict, user, community, 5)
+        
+        conversion_rate = 0
+        recall = 0
+        precision = 0
         for user in user_dict:
-                if len(list(set(user_dict[user]) & set(edge_dict[user]))) > 0:
-                    score=score+1
-        print(f"Community {i} has a probability of: {score / N} SCORE: {score} ------- len {N}")
-        assert (score / N) < 1
-        prob= prob + (score/ N)
+            #Predicted followes
+            L = set(user_dict[user])
+            #actual followes
+            L_p = set(edge_dict[user])
+            conversion_rate += c_conversion_rate(L, L_p)
+            recall += c_recall(L, L_p)
+            precision += c_precision(L, L_p)
+
+        assert (conversion_rate / community_size) < 1
+        conversion_rate_avg= conversion_rate_avg + (conversion_rate/ community_size)
+        recall_avg = recall_avg + (recall / community_size)
+        precision_avg = precision_avg + (precision / community_size)
         i = i + 1
-    return prob/len(communities)
+
+    return conversion_rate_avg/len(communities), recall_avg/len(communities), precision/len(communities)
+
 
 def main():
 
@@ -267,9 +295,11 @@ def main():
     Mc = R(communities, training_edge_dict)
     communities_nR =matrix_factorizer(Mc, K=1, communities=communities)
     
-    a = verify_test_data(communities, communities_nR, edge_dict)
+    conversion, recall, precision = verify_test_data(communities, communities_nR, edge_dict)
 
-    print(f"Final score: {a}")
+    print(f"Final recall: {recall}")
+    print(f"Final precision: {precision}")
+    print(f"Final conversion: {conversion}")
     
 
 
