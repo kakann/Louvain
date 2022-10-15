@@ -162,8 +162,8 @@ def R(communities, training_edge_dict):
             for j in range(dim):
                 if list(community)[j] in training_edge_dict[list(community)[i]]:
                     M[i][j] = 1
-                elif i == j:
-                    M[i][j] = 1
+                #elif i == j:
+                #    M[i][j] = 1
                 else:
                     M[i][j] = 0
         assert len(M) == len(community)
@@ -178,7 +178,6 @@ def matrix_factorizer(Mc, K, communities):
         i=i+1
         N = len(R)
         M = N
-        K = 1
 
         P = np.random.rand(N, K)
         Q = np.random.rand(M, K)
@@ -201,25 +200,23 @@ def c_conversion_rate(L, L_p):
 def c_recall(L, L_p):
     return 0 if  len(L_p) == 0 else L_intersect_L_p(L, L_p)/len(L_p)
 def c_precision(L, L_p):
-    return 0 if len(L) == 0 else L_intersect_L_p(L, L_p)/len(L)
+    if len(L_p) > 0:
+        assert(L_intersect_L_p(L, L_p) <= len(L))
+    return 0 if len(L_p) == 0 else L_intersect_L_p(L, L_p)/len(L)
 
-def verify_test_data(communities, communities_nR, edge_dict):
+def calculate_metrics(communities, communities_nR, edge_dict, K):
     i = 0
     recall_avg = 0
     precision_avg = 0
     conversion_rate_avg = 0
     for (community, nR) in zip(communities, communities_nR):
-        print(f"Verifying data for community {i}")
+        #print(f"Verifying data for community {i}")
         community_size = len(community)
 
         user_dict : dict(str, list) = defaultdict(list)
-        user_dict_list : list(dict(str, list)) = []
-        iK = 0
         for (row, user) in zip(nR, community):
             assert len(row) == community_size
-            
-            
-            top_k_followes(row, user_dict, user, community, 5)
+            top_k_followes(row, user_dict, user, community, K)
         
         conversion_rate = 0
         recall = 0
@@ -237,10 +234,64 @@ def verify_test_data(communities, communities_nR, edge_dict):
         conversion_rate_avg= conversion_rate_avg + (conversion_rate/ community_size)
         recall_avg = recall_avg + (recall / community_size)
         precision_avg = precision_avg + (precision / community_size)
+        #assert(precision_avg <= 1)
+        i = i + 1
+
+    return conversion_rate_avg/len(communities), recall_avg/len(communities), precision_avg/len(communities)
+
+
+def calculate_metrics2(communities, communities_nR, edge_dict, K):
+    i = 0
+    recall_avg = 0
+    precision_avg = 0
+    conversion_rate_avg = 0
+    for (community, nR) in zip(communities, communities_nR):
+        print(f"Verifying data for community {i}")
+        community_size = len(community)
+
+        user_dict_list = []
+        for (row, user) in zip(nR, community):
+            user_dict : dict(str, list) = defaultdict(list)
+            for x in range(1, K):
+                print(x)
+                top_k_followes(row, user_dict, user, community, x)
+                user_dict_list.append(user_dict)
+        print(f"K : {K} userdictlist len {len(user_dict_list)}")
+        assert(len(user_dict_list) == K)
+
+        conversion_rate = []
+        recall = []
+        precision = []
+        for user_dict in user_dict_list:
+            c, r, p = calculate_metrics_for_user(user_dict, edge_dict)
+            conversion_rate.append(c)
+            recall.append(r)
+            precision.append(p)
+        for x in range(K):
+            calculate_avg_metrics_for_community(conversion_rate_avg, conversion_rate[x], recall_avg[x], recall, precision_avg[x], precision)
         i = i + 1
 
     return conversion_rate_avg/len(communities), recall_avg/len(communities), precision/len(communities)
 
+def calculate_avg_metrics_for_community(c_avg, c , r_avg, r, p_avg, p, community_size):
+    c_avg= c_avg + (c/ community_size)
+    r_avg = r_avg + (r/ community_size)
+    p_avg = p_avg + (p/ community_size)
+    
+def calculate_metrics_for_user(user_dict, edge_dict):
+    conversion_rate = 0
+    recall = 0
+    precision = 0
+    for user in user_dict:
+        #Predicted followes
+        L = set(user_dict[user])
+        #actual followes
+        L_p = set(edge_dict[user])
+        conversion_rate += c_conversion_rate(L, L_p)
+        recall += c_recall(L, L_p)
+        precision += c_precision(L, L_p)
+    return conversion_rate, recall, precision
+    
 
 def main():
 
@@ -295,11 +346,26 @@ def main():
     Mc = R(communities, training_edge_dict)
     communities_nR =matrix_factorizer(Mc, K=1, communities=communities)
     
-    conversion, recall, precision = verify_test_data(communities, communities_nR, edge_dict)
+    
 
-    print(f"Final recall: {recall}")
-    print(f"Final precision: {precision}")
-    print(f"Final conversion: {conversion}")
+    precision_list_k = []
+    conversion_list_k = []
+    recall_list_k = []
+    for K in range(1, 6):
+        print(f"Calculating metrics for K={K}")
+        conversion, recall, precision = calculate_metrics(communities, communities_nR, edge_dict, K)
+        assert(precision <= 1)
+        precision_list_k.append(precision)
+        recall_list_k.append(recall)
+        conversion_list_k.append(conversion)
+
+    print("K-values:       1, 2, 3, 4, 5")
+    print(f"Final recall: {recall_list_k}")
+    print(f"Final precision: {precision_list_k}")
+    print(f"Final conversion: {conversion_list_k}")
+
+
+    
     
 
 
